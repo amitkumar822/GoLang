@@ -19,11 +19,17 @@ Copy-Item .env.example .env
 
 # 3. Start the application
 go run cmd/main.go
+
+# OR for auto-reload during development (recommended):
+# Install air: go install github.com/cosmtrek/air@latest
+# Then run: air
 ```
 
 **That's it!** The server will start on `http://localhost:8080`
 
 > 📝 **Note:** Make sure MongoDB is running before starting the application. See [Installation & Setup](#installation--setup) for detailed instructions.
+> 
+> 💡 **Tip:** Use `air` for development - it automatically restarts the server when you make code changes (like `nodemon` in Node.js)!
 
 ## 📋 Table of Contents
 
@@ -35,6 +41,9 @@ go run cmd/main.go
 - [Installation & Setup](#-installation--setup)
 - [Configuration](#-configuration)
 - [Running the Application](#-running-the-application)
+  - [Development Mode (Standard)](#development-mode-standard)
+  - [Development Mode (with Auto-Reload)](#development-mode-with-auto-reload-)
+  - [Production Build](#production-build)
 - [API Documentation](#-api-documentation)
 - [Authentication Flow](#-authentication-flow)
 - [Error Handling](#-error-handling)
@@ -113,6 +122,11 @@ Before running this application, ensure you have:
 
 3. **Postman** or **curl** (for testing API endpoints)
 
+4. **Air** (optional but recommended for development)
+   - Auto-reload tool for Go applications
+   - Install: `go install github.com/cosmtrek/air@latest`
+   - See [Development Mode with Auto-Reload](#development-mode-with-auto-reload-) for details
+
 ## 🚀 Installation & Setup
 
 ### Step 1: Clone/Navigate to Project
@@ -186,10 +200,60 @@ The application reads configuration from environment variables:
 
 ## 🏃 Running the Application
 
-### Development Mode
+### Development Mode (Standard)
 
 ```bash
 go run cmd/main.go
+```
+
+### Development Mode (with Auto-Reload) ⚡
+
+For automatic server restart on code changes (recommended for development):
+
+**Step 1: Install Air**
+```bash
+# Install air globally
+go install github.com/cosmtrek/air@latest
+
+# Verify installation
+air -v
+```
+
+**Step 2: Run with Air**
+```bash
+# From the project root directory
+air
+```
+
+**How it works:**
+- ✅ Watches all `.go` files for changes
+- ✅ Automatically rebuilds when files are saved
+- ✅ Restarts the server automatically
+- ✅ Shows build errors in real-time
+- ✅ No need to manually stop/start the server
+
+**Configuration:**
+The project includes a `.air.toml` configuration file that's already set up. Air will:
+- Watch all Go files in the project
+- Rebuild when any `.go` file changes
+- Exclude test files and temporary directories
+- Display colored output for better visibility
+- Create a `tmp/` directory for build artifacts (already in `.gitignore`)
+
+**Note:** The `tmp/` directory and `build-errors.log` file are automatically created by air and are already excluded in `.gitignore`.
+
+**Example workflow:**
+```bash
+# Terminal 1: Start the server with air
+air
+
+# Terminal 2: Make changes to any .go file
+# Save the file → Server automatically restarts!
+```
+
+**Alternative: Quick Air Command (without config file)**
+```bash
+air -c . -build.cmd "go build -o ./tmp/main ./cmd/main.go" -build.bin "./tmp/main"
 ```
 
 ### Production Build

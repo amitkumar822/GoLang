@@ -16,17 +16,16 @@ func NewHomeHandler() *HomeHandler {
 
 // Welcome handles the root endpoint
 func (h *HomeHandler) Welcome(w http.ResponseWriter, r *http.Request) {
-	response := map[string]interface{}{
-		"message": "Welcome to Go Lang User API",
-		"version": "1.0.0",
-		"status":  "running",
-		"endpoints": map[string]string{
-			"register": "/api/auth/register",
-			"login":    "/api/auth/login",
-			"users":    "/api/users",
-		},
-	}
+	// response := map[string]interface{}{
+	// 	"message": "Welcome to Go Lang User API",
+	// 	"version": "1.0.0",
+	// 	"status":  "running",
+	// 	"endpoints": map[string]string{
+	// 		"register": "/api/auth/register",
+	// 		"login":    "/api/auth/login",
+	// 		"users":    "/api/users",
+	// 	},
+	// }
 
-	utils.SuccessResponse(w, "API is running", response)
+	utils.SuccessResponse(w, "API is running", "Welcome to Go Lang User API")
 }
-

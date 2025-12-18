@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"user-management-system/models"
@@ -74,6 +75,9 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*models.User,
 
 // FindByEmail finds a user by their email
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
+	// Convert email to lowercase for consistent searching
+	email = strings.ToLower(strings.TrimSpace(email))
+	
 	var user models.User
 	err := r.collection.FindOne(ctx, bson.M{"email": email}).Decode(&user)
 	if err != nil {

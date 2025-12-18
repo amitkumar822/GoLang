@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"user-management-system/models"
@@ -28,8 +29,11 @@ func (s *UserService) Register(ctx context.Context, req *models.RegisterRequest)
 		return nil, err
 	}
 
+	// Convert email to lowercase
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+
 	// Check if user already exists
-	existingUser, _ := s.userRepo.FindByEmail(ctx, req.Email)
+	existingUser, _ := s.userRepo.FindByEmail(ctx, email)
 	if existingUser != nil {
 		return nil, errors.New("email already registered")
 	}
@@ -43,7 +47,7 @@ func (s *UserService) Register(ctx context.Context, req *models.RegisterRequest)
 	// Create user
 	user := &models.User{
 		Name:      req.Name,
-		Email:     req.Email,
+		Email:     email,
 		Password:  string(hashedPassword),
 		Role:      "user", // Default role
 		IsActive:  true,
@@ -65,8 +69,11 @@ func (s *UserService) Login(ctx context.Context, req *models.LoginRequest) (*mod
 		return nil, errors.New("email and password are required")
 	}
 
+	// Convert email to lowercase
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+
 	// Find user by email
-	user, err := s.userRepo.FindByEmail(ctx, req.Email)
+	user, err := s.userRepo.FindByEmail(ctx, email)
 	if err != nil {
 		return nil, errors.New("invalid email or password")
 	}
@@ -105,12 +112,15 @@ func (s *UserService) UpdateUser(ctx context.Context, id string, req *models.Upd
 	}
 
 	if req.Email != "" {
+		// Convert email to lowercase
+		email := strings.ToLower(strings.TrimSpace(req.Email))
+
 		// Check if email is already taken by another user
-		existingUser, _ := s.userRepo.FindByEmail(ctx, req.Email)
+		existingUser, _ := s.userRepo.FindByEmail(ctx, email)
 		if existingUser != nil && existingUser.ID.Hex() != id {
 			return nil, errors.New("email already in use")
 		}
-		updateData["email"] = req.Email
+		updateData["email"] = email
 	}
 
 	if req.Password != "" {
@@ -195,4 +205,3 @@ func (s *UserService) validateRegisterRequest(req *models.RegisterRequest) error
 
 	return nil
 }
-
