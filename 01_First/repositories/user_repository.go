@@ -77,7 +77,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*models.User,
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
 	// Convert email to lowercase for consistent searching
 	email = strings.ToLower(strings.TrimSpace(email))
-	
+
 	var user models.User
 	err := r.collection.FindOne(ctx, bson.M{"email": email}).Decode(&user)
 	if err != nil {
@@ -165,3 +165,98 @@ func (r *UserRepository) FindAll(ctx context.Context, page, limit int) ([]*model
 	return users, total, nil
 }
 
+// FindAllWithoutLimit retrieves ALL users from database without pagination limit
+// Uses concurrent MongoDB cursor processing with channels for optimal performance
+func (r *UserRepository) FindAllWithoutLimit(ctx context.Context) ([]*models.User, int64, error) {
+	// Set up find options with optimized batch size
+	findOptions := options.Find()
+	findOptions.SetBatchSize(2000)                             // Increased batch size for better throughput
+	findOptions.SetSort(bson.D{{Key: "createdAt", Value: -1}}) // Sort by createdAt descending
+
+	// Find all users with cursor
+	cursor, err := r.collection.Find(ctx, bson.M{}, findOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	// Get total count concurrently in separate goroutine
+	type countResult struct {
+		count int64
+		err   error
+	}
+	countChan := make(chan countResult, 1)
+
+	go func() {
+		total, err := r.collection.CountDocuments(ctx, bson.M{})
+		countChan <- countResult{count: total, err: err}
+	}()
+
+	// Use channels for concurrent cursor processing
+	userChan := make(chan *models.User, 2000) // Buffered channel for better throughput
+	errChan := make(chan error, 1)
+
+	// Start goroutine to process cursor concurrently
+	go func() {
+		defer close(userChan)
+		for cursor.Next(ctx) {
+			var user models.User
+			if err := cursor.Decode(&user); err != nil {
+				select {
+				case errChan <- err:
+				case <-ctx.Done():
+					return
+				}
+				return
+			}
+			select {
+			case userChan <- &user:
+			case <-ctx.Done():
+				return
+			}
+		}
+		// Check for cursor errors
+		if err := cursor.Err(); err != nil {
+			select {
+			case errChan <- err:
+			case <-ctx.Done():
+			}
+		}
+	}()
+
+	// Collect users from channel concurrently
+	var users []*models.User
+	users = make([]*models.User, 0, 10000) // Pre-allocate with reasonable capacity
+
+	// Use a separate goroutine to collect users while cursor is processing
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for user := range userChan {
+			users = append(users, user)
+		}
+	}()
+
+	// Wait for collection to complete or error
+	select {
+	case err := <-errChan:
+		return nil, 0, err
+	case <-done:
+		// Collection completed successfully
+	case <-ctx.Done():
+		return nil, 0, ctx.Err()
+	}
+
+	// Get count result
+	countRes := <-countChan
+	if countRes.err != nil {
+		return nil, 0, countRes.err
+	}
+
+	return users, countRes.count, nil
+}
+
+// GetTotalCount retrieves the total count of users in the database
+func (r *UserRepository) GetTotalCount(ctx context.Context) (int64, error) {
+	return r.collection.CountDocuments(ctx, bson.M{})
+}

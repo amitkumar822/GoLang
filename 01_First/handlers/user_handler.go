@@ -131,3 +131,32 @@ func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	utils.PaginatedSuccessResponse(w, users, page, limit, total, totalPages)
 }
 
+// GetAllUsersWithoutLimit retrieves ALL users from database without pagination
+// This endpoint is optimized for large datasets using concurrent processing
+func (h *UserHandler) GetAllUsersWithoutLimit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		utils.ErrorResponse(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	users, total, err := h.userService.GetAllUsersWithoutLimit(r.Context())
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve all users")
+		return
+	}
+
+	// Return all users with total count
+	response := map[string]interface{}{
+		"success": true,
+		"message": "All users retrieved successfully",
+		"data": map[string]interface{}{
+			"users": users,
+			"total": total,
+			"count": len(users),
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}

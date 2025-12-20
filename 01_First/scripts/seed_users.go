@@ -100,11 +100,11 @@ var (
 
 func main() {
 	var count int
-	flag.IntVar(&count, "count", 1000, "Number of users to insert (1000 or 2000)")
+	flag.IntVar(&count, "count", 1000, "Number of users to insert (1000, 2000, 10000, or 50000 or 100000)")
 	flag.Parse()
 
-	if count != 1000 && count != 2000 {
-		log.Fatal("Count must be either 1000 or 2000")
+	if count != 1000 && count != 2000 && count != 10000 && count != 50000 && count != 100000 {
+		log.Fatal("Count must be either 1000, 2000, 10000, 50000 or 100000")
 	}
 
 	// Load configuration
@@ -185,7 +185,7 @@ func generateUsers(count int, passwordHash string) []models.User {
 			firstName := firstNames[rand.Intn(len(firstNames))]
 			lastName := lastNames[rand.Intn(len(lastNames))]
 			domain := domains[rand.Intn(len(domains))]
-			number := rand.Intn(10000)
+			number := rand.Intn(100000) // Increased range for 10k users
 			email = fmt.Sprintf("%s.%s%d@%s",
 				firstName, lastName, number, domain)
 			email = strings.ToLower(email)

@@ -57,6 +57,7 @@ go run cmd/main.go
 - ✅ Password Hashing with bcrypt
 - ✅ CRUD Operations for Users
 - ✅ Pagination Support
+- ✅ Bulk User Retrieval (All Users) with Concurrent Processing
 - ✅ Input Validation
 - ✅ CORS Support
 - ✅ Request Logging
@@ -318,7 +319,8 @@ Get API information and welcome message.
     "endpoints": {
       "register": "/api/auth/register",
       "login": "/api/auth/login",
-      "users": "/api/users"
+      "users": "/api/users",
+      "usersAll": "/api/users/all"
     }
   }
 }
@@ -508,7 +510,74 @@ curl -X GET "http://localhost:8080/api/users?page=1&limit=10" \
 
 ---
 
-### 4. Get User by ID
+### 4. Get All Users (Without Pagination) ⚡
+
+Retrieve **ALL** users from the database without pagination limits. This endpoint is optimized for large datasets using concurrent processing with goroutines.
+
+**Endpoint:** `GET /api/users/all`
+
+**Authentication:** Required (JWT)
+
+**Note:** This endpoint is designed for bulk operations and large datasets. It uses:
+- MongoDB cursor batching (1000 documents per batch)
+- Concurrent goroutines for data processing
+- Optimized memory management for handling hundreds of thousands of users
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "All users retrieved successfully",
+  "data": {
+    "users": [
+      {
+        "id": "65ab1234567890abcdef1234",
+        "name": "John Doe",
+        "email": "john@example.com",
+        "role": "user",
+        "isActive": true,
+        "createdAt": "2024-01-15T10:30:00Z",
+        "updatedAt": "2024-01-15T10:30:00Z"
+      },
+      {
+        "id": "65ab1234567890abcdef1235",
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "role": "admin",
+        "isActive": true,
+        "createdAt": "2024-01-15T11:00:00Z",
+        "updatedAt": "2024-01-15T11:00:00Z"
+      }
+      // ... all users in database
+    ],
+    "total": 460000,
+    "count": 460000
+  }
+}
+```
+
+**Performance Features:**
+- ✅ Concurrent database fetching (users and count in parallel)
+- ✅ Worker pool pattern for concurrent data conversion
+- ✅ Batch processing for memory efficiency
+- ✅ Handles large datasets (100K+ users) efficiently
+
+**cURL Example:**
+```bash
+curl -X GET http://localhost:8080/api/users/all \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**⚠️ Important Notes:**
+- This endpoint returns **all users** including duplicates (same email or name)
+- For large datasets (100K+ users), the response may take some time to process
+- Response size can be very large - ensure your client can handle large JSON responses
+- Consider using pagination endpoint (`/api/users`) for regular use cases
+- This endpoint is best suited for data export, bulk operations, or admin dashboards
+
+---
+
+### 5. Get User by ID
 
 Retrieve a specific user by their ID.
 
@@ -552,7 +621,7 @@ curl -X GET http://localhost:8080/api/users/65ab1234567890abcdef1234 \
 
 ---
 
-### 5. Update User
+### 6. Update User
 
 Update user information. Users can update their own account, admins can update any account.
 
@@ -622,7 +691,7 @@ curl -X PUT http://localhost:8080/api/users/65ab1234567890abcdef1234 \
 
 ---
 
-### 6. Delete User
+### 7. Delete User
 
 Delete a user account. Only admins can delete users.
 
@@ -779,6 +848,12 @@ curl -X GET "http://localhost:8080/api/users?page=1&limit=5" \
   -H "Authorization: Bearer YOUR_TOKEN_HERE"
 ```
 
+#### 3b. Get All Users (Without Pagination)
+```bash
+curl -X GET http://localhost:8080/api/users/all \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
 #### 4. Get User by ID
 ```bash
 curl -X GET http://localhost:8080/api/users/USER_ID_HERE \
@@ -839,11 +914,18 @@ curl -X DELETE http://localhost:8080/api/users/USER_ID_HERE \
      }
      ```
 
-   **Get All Users:**
+   **Get All Users (Paginated):**
    - Method: `GET`
    - URL: `{{base_url}}/users?page=1&limit=10`
    - Headers:
      - `Authorization`: `Bearer {{token}}`
+
+   **Get All Users (Without Pagination):**
+   - Method: `GET`
+   - URL: `{{base_url}}/users/all`
+   - Headers:
+     - `Authorization`: `Bearer {{token}}`
+   - ⚠️ Note: Returns all users - use with caution for large datasets
 
    **Get User by ID:**
    - Method: `GET`

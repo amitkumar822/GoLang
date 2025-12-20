@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"user-management-system/models"
@@ -187,6 +189,129 @@ func (s *UserService) GetAllUsers(ctx context.Context, page, limit int) ([]*mode
 	totalPages := int((total + int64(limit) - 1) / int64(limit))
 
 	return userResponses, totalPages, total, nil
+}
+
+// GetAllUsersWithoutLimit retrieves ALL users from database without pagination
+// Uses advanced concurrent processing with worker pools and channels for optimal performance
+func (s *UserService) GetAllUsersWithoutLimit(ctx context.Context) ([]*models.UserResponse, int64, error) {
+	// Fetch all users from repository (optimized with concurrent cursor processing)
+	users, total, err := s.userRepo.FindAllWithoutLimit(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Convert to response format using optimized worker pool pattern with channels
+	userResponses := s.convertUsersWithWorkerPool(ctx, users)
+
+	return userResponses, total, nil
+}
+
+// convertUsersWithWorkerPool converts users to UserResponse using a worker pool pattern with channels
+// This is more efficient than chunk-based processing for large datasets
+func (s *UserService) convertUsersWithWorkerPool(ctx context.Context, users []*models.User) []*models.UserResponse {
+	if len(users) == 0 {
+		return []*models.UserResponse{}
+	}
+
+	// For small datasets, sequential processing is faster due to goroutine overhead
+	if len(users) < 100 {
+		userResponses := make([]*models.UserResponse, len(users))
+		for i, user := range users {
+			userResponses[i] = user.ToUserResponse()
+		}
+		return userResponses
+	}
+
+	// Determine optimal number of workers
+	numWorkers := runtime.NumCPU() * 3 // Use 3x CPU cores for better parallelism
+	if numWorkers > len(users) {
+		numWorkers = len(users)
+	}
+	if numWorkers > 100 {
+		numWorkers = 100 // Cap at 100 workers for very large datasets
+	}
+
+	// Create channels for worker pool pattern
+	userChan := make(chan *userConversionJob, numWorkers*2) // Buffered channel
+	resultChan := make(chan *userConversionResult, len(users))
+
+	// Start worker pool
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			for job := range userChan {
+				// Check context cancellation
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				// Convert user to response
+				response := job.user.ToUserResponse()
+				resultChan <- &userConversionResult{
+					index:    job.index,
+					response: response,
+				}
+			}
+		}(i)
+	}
+
+	// Send all users to worker pool
+	go func() {
+		defer close(userChan)
+		for i, user := range users {
+			select {
+			case <-ctx.Done():
+				return
+			case userChan <- &userConversionJob{
+				index: i,
+				user:  user,
+			}:
+			}
+		}
+	}()
+
+	// Close result channel when all workers are done
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Collect results and maintain order
+	userResponses := make([]*models.UserResponse, len(users))
+	completed := 0
+
+	for result := range resultChan {
+		if result.index >= 0 && result.index < len(userResponses) {
+			userResponses[result.index] = result.response
+			completed++
+		}
+	}
+
+	// Check if context was cancelled
+	select {
+	case <-ctx.Done():
+		// Return partial results if cancelled
+		return userResponses
+	default:
+	}
+
+	return userResponses
+}
+
+// userConversionJob represents a job for worker pool
+type userConversionJob struct {
+	index int
+	user  *models.User
+}
+
+// userConversionResult represents the result of user conversion
+type userConversionResult struct {
+	index    int
+	response *models.UserResponse
 }
 
 // validateRegisterRequest validates registration input

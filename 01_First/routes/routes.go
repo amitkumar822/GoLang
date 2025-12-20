@@ -45,6 +45,9 @@ func SetupRoutes(
 	// Get all users (with pagination)
 	users.HandleFunc("", userHandler.GetAllUsers).Methods("GET")
 
+	// Get all users without pagination limit (optimized for large datasets)
+	users.HandleFunc("/all", userHandler.GetAllUsersWithoutLimit).Methods("GET")
+
 	// Get single user
 	users.HandleFunc("/{id}", userHandler.GetUser).Methods("GET")
 
